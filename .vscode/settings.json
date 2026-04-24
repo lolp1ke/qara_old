@@ -1,0 +1,12 @@
+{
+  "rust-analyzer.rustfmt.extraArgs": [
+    "+nightly"
+  ],
+  "rust-analyzer.check.targets": [
+    "aarch64-apple-darwin",
+    "x86_64-unknown-linux-musl",
+  ],
+  "rust-analyzer.cargo.target": "aarch64-apple-darwin",
+  "rust-analyzer.check.allTargets": true,
+  "rust-analyzer.check.command": "clippy",
+}

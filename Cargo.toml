@@ -1,0 +1,91 @@
+[package]
+name = "qara"
+
+authors.workspace = true
+
+edition.workspace = true
+version.workspace = true
+
+description.workspace = true
+# keywords.workspace = true
+# categories.workspace = true
+
+# homepage.workspace = true
+repository.workspace = true
+# documentation.workspace = true
+readme.workspace = true
+license-file.workspace = true
+
+# include.workspace = true
+# exclude.workspace = true
+
+rust-version.workspace = true
+
+[[bin]]
+name = "qara"
+required-features = ["default"]
+
+[features]
+default = ["tokio"]
+
+tokio = ["tokio/rt-multi-thread", "tokio/macros"]
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[lints]
+workspace = true
+
+[dependencies]
+qara_app = { workspace = true }
+
+anyhow = { workspace = true }
+ctrlc = { workspace = true }
+tokio = { workspace = true }
+
+[workspace]
+members = ["crates/qara_app"]
+resolver = "3"
+
+[workspace.dependencies]
+qara_app = { path = "crates/qara_app" }
+
+anyhow = { version = "1.0.102", default-features = false }
+axum = { version = "0.8.9", default-features = false }
+crossterm = { version = "0.29.0", default-features = false }
+ctrlc = { version = "3.5.2", default-features = false }
+derive_more = { version = "2.1.1", default-features = false }
+futures-util = { version = "0.3.32", default-features = false }
+librqbit = { version = "8.1.1", default-features = false }
+ratatui = { version = "0.30.0", default-features = false }
+reqwest = { version = "0.13.2", default-features = false }
+rss = { version = "2.0.12", default-features = false }
+serde = { version = "1.0.228", default-features = false }
+tokio = { version = "1.52.1", default-features = false }
+
+
+[workspace.package]
+authors = ["Alibek<freed.alibek@gmail.com>"]
+
+edition = "2024"
+version = "0.1.0"
+
+description = ""
+# keywords = []
+# categories = []
+
+# homepage = ""
+repository = "https://github.com/lolp1ke/qara"
+# documentation = ""
+readme = "README.md"
+license-file = "LICENSE-APACHE"
+
+# include = []
+# exclude = []
+
+rust-version = "1.94.0"
+
+[workspace.lints]
+cargo = {}
+rust = { unsafe_code = "warn" }
+clippy = { std_instead_of_alloc = "warn", std_instead_of_core = "warn" }

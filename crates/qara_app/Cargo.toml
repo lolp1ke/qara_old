@@ -1,0 +1,55 @@
+[package]
+name = "qara_app"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
+
+[lib]
+required-features = ["default"]
+
+[features]
+default = [
+  "tokio",
+  "crossterm",
+  "ratatui",
+  "reqwest",
+  "librqbit",
+  "serde",
+  "derive_more",
+]
+
+crossterm = ["crossterm/event-stream"]
+derive_more = ["derive_more/debug"]
+librqbit = [
+  "librqbit/disable-upload",
+  "librqbit/rust-tls",
+  "librqbit/http-api-client",
+  "librqbit/http-api",
+  "librqbit/tracing-subscriber-utils",
+  "librqbit/webui",
+]
+ratatui = ["ratatui/crossterm"]
+reqwest = ["reqwest/rustls"]
+serde = ["serde/rc"]
+tokio = ["tokio/time", "tokio/sync", "tokio/process"]
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+crossterm = { workspace = true }
+derive_more = { workspace = true }
+futures-util = { workspace = true }
+librqbit = { workspace = true }
+ratatui = { workspace = true }
+reqwest = { workspace = true }
+rss = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true
