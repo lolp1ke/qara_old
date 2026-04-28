@@ -18,4 +18,8 @@ pub enum Action {
   AppendHandle(#[debug(skip)] Arc<ManagedTorrent>),
 
   Popup(Arc<str>, Arc<str>, Arc<[Arc<str>]>),
+
+  Play(Arc<str>),
+  NextVo,
+  PrevVo,
 }

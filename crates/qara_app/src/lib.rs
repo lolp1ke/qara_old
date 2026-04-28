@@ -5,6 +5,7 @@ mod audio;
 mod components;
 mod mode;
 mod nyaa;
+mod player;
 mod vo;
 
 pub(crate) use action::*;
@@ -13,4 +14,5 @@ pub(crate) use audio::*;
 pub(crate) use components::*;
 pub(crate) use mode::*;
 pub(crate) use nyaa::*;
+pub(crate) use player::*;
 pub(crate) use vo::*;

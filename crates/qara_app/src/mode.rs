@@ -1,8 +1,10 @@
 use core::fmt;
 
 #[derive(Debug)]
+#[derive(Default)]
 #[derive(Clone)]
 pub enum Mode {
+  #[default]
   Normal,
   Search,
   Searching,
@@ -10,6 +12,7 @@ pub enum Mode {
   Selected,
   Downloads(Box<Self>),
   Popup(Box<Self>),
+  Player,
 }
 impl fmt::Display for Mode {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -23,6 +26,7 @@ impl fmt::Display for Mode {
         f.write_str(&format!("{} -> downloads", prev_mode))
       }
       Self::Popup(prev_mode) => f.write_str(&format!("{} -> popup", prev_mode)),
+      Self::Player => f.write_str("player"),
     }
   }
 }

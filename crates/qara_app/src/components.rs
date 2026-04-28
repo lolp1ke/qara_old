@@ -34,8 +34,7 @@ impl Components {
       items: Box::new(ItemsComponent::new()),
       selected_item: Box::new(SelectedItemComponent::new()),
       downloaded_items: Box::new(DownloadedItemsComponent::new()),
-
-      popup: Box::new(PopupComponent::new("Popup", "", Default::default())),
+      popup: Box::new(PopupComponent::new("", "", Default::default())),
     }
   }
 

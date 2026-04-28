@@ -11,7 +11,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc;
 
-use crate::{Action, AppCtxt, Component, Mode, Vo};
+use crate::{Action, AppCtxt, Component, Mode, Vo, player};
 
 #[derive(Debug)]
 pub(crate) struct DownloadedItemsComponent {
@@ -44,20 +44,24 @@ impl Component for DownloadedItemsComponent {
           "{:.2} Mb",
           handle.stats().total_bytes as f64 / 1024.0 / 1024.0
         ),
+        handle.stats().progress_percent_human_readable().to_string(),
       ]))
     });
 
-    let titles_row = ["filename", "size"];
+    let titles_row = ["filename", "size", "progress"];
     let mut rows = vec![Row::new(titles_row.map(Span::raw))];
     rows.extend(items);
 
-    let table = Table::new(rows, [Constraint::Fill(1), Constraint::Min(3)])
-      .block(
-        Block::new()
-          .borders(Borders::LEFT | Borders::RIGHT)
-          .border_type(BorderType::Thick),
-      )
-      .row_highlight_style(Style::default().cyan());
+    let table = Table::new(
+      rows,
+      [Constraint::Fill(1), Constraint::Min(3), Constraint::Min(3)],
+    )
+    .block(
+      Block::new()
+        .borders(Borders::LEFT | Borders::RIGHT)
+        .border_type(BorderType::Thick),
+    )
+    .row_highlight_style(Style::default().cyan());
     frame.render_stateful_widget(table, area, &mut self.table);
   }
   fn dispatch_event(
@@ -104,16 +108,8 @@ impl Component for DownloadedItemsComponent {
                 .unwrap_or(0)
             );
 
-            match cx.vo {
-              Vo::Ascii => {}
-              Vo::Mpv => {
-                tokio::process::Command::new("mpv")
-                  .stdout(std::process::Stdio::null())
-                  .stderr(std::process::Stdio::null())
-                  .args(["--fullscreen", &*url])
-                  .spawn()?;
-              }
-            };
+            tx.send(Action::Enter(Mode::Player))?;
+            tx.send(Action::Play(url.into()))?;
           };
         }
         event::KeyCode::Esc => {

@@ -39,6 +39,8 @@ serde = ["serde/rc"]
 tokio = ["tokio/time", "tokio/sync", "tokio/process"]
 
 [dependencies]
+qara_video = { workspace = true }
+
 anyhow = { workspace = true }
 axum = { workspace = true }
 crossterm = { workspace = true }

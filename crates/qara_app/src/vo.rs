@@ -1,6 +1,7 @@
 use core::fmt;
 
 #[derive(Debug)]
+#[derive(Clone, Copy)]
 pub(crate) enum Vo {
   Ascii,
   Mpv,

@@ -1,0 +1,28 @@
+[package]
+name = "qara_video"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
+
+[lib]
+required-features = ["default"]
+
+[features]
+default = ["tokio"]
+
+tokio = ["tokio/process", "tokio/io-std"]
+
+[dependencies]
+anyhow = { workspace = true }
+rayon = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+wide = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,6 +1,11 @@
 use alloc::sync::Arc;
 use core::sync::{atomic, atomic::AtomicBool};
-use std::{env::home_dir, io::Stdout, sync::OnceLock};
+use std::{
+  env::home_dir,
+  io::{Stdout, stdin},
+  process::Stdio,
+  sync::OnceLock,
+};
 
 use anyhow::Context as _;
 use crossterm::event::{self, EventStream};
@@ -15,11 +20,14 @@ use ratatui::{
   prelude::CrosstermBackend,
 };
 use rss::{Channel, Item};
-use tokio::{runtime::Handle, sync::mpsc};
-
-use crate::{
-  Action, Component, Components, Mode, NyaaChannel, PopupComponent, Vo,
+use tokio::{
+  runtime::Handle,
+  sync::{mpsc, oneshot},
 };
+
+use qara_video::{Player, Vo};
+
+use crate::{Action, Component, Components, Mode, NyaaChannel, PopupComponent};
 
 static TICK_RATE: OnceLock<f32> = OnceLock::new();
 fn tick_rate() -> f32 {
@@ -32,7 +40,10 @@ fn frame_rate() -> f32 {
 
 #[derive(derive_more::Debug)]
 pub(crate) struct AppCtxt {
+  // pub(crate) video: Player,
   pub(crate) vo: Vo,
+  pub(crate) width: u16,
+  pub(crate) height: u16,
   pub(crate) mode: Mode,
   #[debug(skip)]
   pub(crate) channel: Option<Arc<NyaaChannel>>,
@@ -44,9 +55,14 @@ pub(crate) struct AppCtxt {
 }
 impl Default for AppCtxt {
   fn default() -> Self {
+    let size = crossterm::terminal::size().unwrap();
+
     Self {
+      // video: Player::default(),
       vo: Vo::Mpv,
-      mode: Mode::Normal,
+      width: size.0,
+      height: size.1,
+      mode: Mode::default(),
       channel: None,
       items: Vec::new(),
       selected_item: None,
@@ -62,6 +78,8 @@ pub struct App {
 
   pub(crate) tx: mpsc::UnboundedSender<Action>,
   rx: mpsc::UnboundedReceiver<Action>,
+
+  player_stop: Option<oneshot::Sender<()>>,
 
   #[debug(skip)]
   term: Terminal<CrosstermBackend<Stdout>>,
@@ -82,13 +100,38 @@ impl App {
       executor,
       tx,
       rx,
+      player_stop: None,
       term: ratatui::init(),
       components: Components::new(),
       session: None,
     }
   }
 
-  pub async fn init(&mut self) -> anyhow::Result<()> {
+  async fn init(&mut self, cx: &mut AppCtxt) -> anyhow::Result<()> {
+    let has_mpv = tokio::process::Command::new("which")
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .arg("mpv")
+      .status()
+      .await?;
+    if !has_mpv.success() {
+      cx.vo = Vo::Ansi;
+
+      let has_ffmpeg = tokio::process::Command::new("which")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .arg("ffmpeg")
+        .status()
+        .await?;
+      if !has_ffmpeg.success() {
+        self.cleanup()?;
+        eprintln!("Either mpv or ffmpeg must be installed.");
+        std::process::exit(1);
+      };
+    };
+
     // TODO: macos friendly rn
     let downloads_dir = home_dir()
       .context("no home bro?")?
@@ -196,16 +239,6 @@ impl App {
                     .into_handle()
                     .context("no handle")?;
 
-                  // use tokio::process;
-                  // process::Command::new("mpv")
-                  //   .stdout(std::process::Stdio::null())
-                  //   .arg(format!(
-                  //     "http://127.0.0.1:3030/torrents/{}/stream/{}",
-                  //     handle.id(),
-                  //     0
-                  //   ))
-                  //   .spawn()?;
-
                   tx.send(Action::AppendHandle(handle))?;
                   anyhow::Ok(())
                 }
@@ -225,6 +258,10 @@ impl App {
         };
       }
 
+      Action::AppendHandle(handle) => {
+        cx.torrent_handles.push(handle);
+      }
+
       Action::Popup(title, description, buttons) => {
         cx.mode = Mode::Popup(Box::new(cx.mode.clone()));
         self
@@ -241,8 +278,32 @@ impl App {
           });
       }
 
-      Action::AppendHandle(handle) => {
-        cx.torrent_handles.push(handle);
+      Action::Play(url) => {
+        let (stop_tx, stop_rx) = oneshot::channel();
+        if let Some(stop_tx) = self.player_stop.take() {
+          stop_tx.send(()).unwrap();
+        };
+        self.player_stop = Some(stop_tx);
+
+        let player = Player::new(
+          cx.vo.clone(),
+          url,
+          self.executor.clone(),
+          cx.width,
+          cx.height,
+          stop_rx,
+        );
+        self.executor.spawn(async move {
+          player.play().await?;
+
+          anyhow::Ok(())
+        });
+      }
+      Action::NextVo => {
+        cx.vo = cx.vo.next();
+      }
+      Action::PrevVo => {
+        cx.vo = cx.vo.prev();
       }
     };
     self.components.dispatch_action(action, cx)?;
@@ -250,7 +311,7 @@ impl App {
     Ok(())
   }
   fn handle_key_event(
-    &self,
+    &mut self,
     key: event::KeyEvent,
     cx: &mut AppCtxt,
   ) -> anyhow::Result<()> {
@@ -258,52 +319,89 @@ impl App {
       return Ok(());
     };
 
-    if let Mode::Normal = cx.mode {
-      match key.code {
-        event::KeyCode::Char('q') => {
-          self.tx.send(Action::Quit)?;
-        }
+    match cx.mode {
+      Mode::Normal => {
+        match key.code {
+          event::KeyCode::Char('q') => {
+            self.tx.send(Action::Quit)?;
+          }
 
-        event::KeyCode::Char('i') => {
-          self.tx.send(Action::Enter(Mode::Search))?;
-        }
-        event::KeyCode::Char('s') => {
-          if cx.channel.is_some() {
-            self.tx.send(Action::Enter(Mode::Results))?;
-          };
-        }
-        event::KeyCode::Char('l') => {
-          self
-            .tx
-            .send(Action::Enter(Mode::Downloads(Box::new(cx.mode.clone()))))?;
-        }
-        event::KeyCode::Char(' ') => {
-          if cx.selected_item.is_some() {
-            self.tx.send(Action::Enter(Mode::Selected))?;
-          };
-        }
+          event::KeyCode::Char('i') => {
+            self.tx.send(Action::Enter(Mode::Search))?;
+          }
+          event::KeyCode::Char('s') => {
+            if cx.channel.is_some() {
+              self.tx.send(Action::Enter(Mode::Results))?;
+            };
+          }
+          event::KeyCode::Char('l') => {
+            self.tx.send(Action::Enter(Mode::Downloads(Box::new(
+              cx.mode.clone(),
+            ))))?;
+          }
+          event::KeyCode::Char(' ') => {
+            if cx.selected_item.is_some() {
+              self.tx.send(Action::Enter(Mode::Selected))?;
+            };
+          }
 
-        // test only
-        event::KeyCode::Char('p') => {
-          use tokio::process;
-          process::Command::new("mpv")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .args([
-              &format!("http://127.0.0.1:3030/torrents/{}/stream/{}", 0, 0),
-              "--fullscreen",
-            ])
-            .spawn()?;
-        }
+          event::KeyCode::Char(',') => {
+            self.tx.send(Action::PrevVo)?;
+          }
+          event::KeyCode::Char('.') => {
+            self.tx.send(Action::NextVo)?;
+          }
 
-        _ => {}
+          // test only
+          event::KeyCode::Char('p') => {
+            let (stop_tx, stop_rx) = oneshot::channel();
+            if let Some(stop_tx) = self.player_stop.take() {
+              stop_tx.send(()).unwrap();
+            };
+            self.player_stop = Some(stop_tx);
+
+            let player = Player::new(
+              Vo::Ansi,
+              "http://127.0.0.1:3030/torrents/0/stream/0".into(),
+              self.executor.clone(),
+              cx.width,
+              cx.height,
+              stop_rx,
+            );
+
+            self.tx.send(Action::Enter(Mode::Player))?;
+            self.executor.spawn(async move {
+              player.play().await?;
+
+              anyhow::Ok(())
+            });
+          }
+
+          _ => {}
+        }
       }
+
+      Mode::Player => {
+        if let event::KeyEvent {
+          code: event::KeyCode::Char('q'),
+          modifiers: _,
+          kind: event::KeyEventKind::Press,
+          state: _,
+        } = key
+        {
+          if let Some(player_stop) = self.player_stop.take() {
+            player_stop.send(()).unwrap();
+          };
+          self.tx.send(Action::Enter(Mode::Normal))?;
+        };
+      }
+      _ => {}
     };
 
     Ok(())
   }
   fn handle_event(
-    &self,
+    &mut self,
     event: Arc<event::Event>,
     cx: &mut AppCtxt,
   ) -> anyhow::Result<()> {
@@ -317,9 +415,9 @@ impl App {
     Ok(())
   }
   pub async fn run(&mut self) -> anyhow::Result<()> {
-    self.init().await?;
-
+    // panic!("{:?}", crossterm::terminal::size());
     let mut cx = AppCtxt::default();
+    self.init(&mut cx).await?;
 
     let mut tick = tokio::time::interval(tokio::time::Duration::from_secs_f32(
       1.0 / tick_rate(),
@@ -345,7 +443,9 @@ impl App {
           self.components.tick()?;
         }
         _ = render_tick.tick() => {
-          self.render(&mut cx)?;
+          if !matches!(cx.mode, Mode::Player) {
+            self.render(&mut cx)?;
+          };
         }
       }
     }
