@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 
-use librqbit::ManagedTorrent;
+use librqbit::{ManagedTorrent, dht::Id20};
 
 use crate::{Mode, NyaaChannel};
 
@@ -16,6 +16,7 @@ pub enum Action {
   Download(Arc<str>),
 
   AppendHandle(#[debug(skip)] Arc<ManagedTorrent>),
+  DeleteHandle(Id20, usize),
 
   Popup(Arc<str>, Arc<str>, Arc<[Arc<str>]>),
 

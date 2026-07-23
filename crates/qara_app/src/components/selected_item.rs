@@ -48,7 +48,9 @@ impl Component for SelectedItemComponent {
 
       let paragraph = Paragraph::new(Text::from(vec![
         Line::raw(title),
+        Line::raw(""),
         Line::raw(link),
+        Line::raw(""),
         Line::raw(format!("downloads: {}; seeds: {}", downloads, seeds)),
       ]))
       .wrap(Wrap { trim: false })

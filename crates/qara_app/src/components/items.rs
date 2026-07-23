@@ -35,17 +35,33 @@ impl Component for ItemsComponent {
     if let Some(channel) = &cx.channel {
       let items_len = channel.items.len();
       let items = channel.items.iter().enumerate().flat_map(|(idx, item)| {
-        let extensions = item.extensions();
+        let Some(extension) = item.extensions().get("nyaa") else {
+          eprintln!("Must've been the wind");
+          return None;
+        };
+        let seeds_ext = extension
+          .get("seeders")
+          .and_then(|e| e.first())
+          .cloned()
+          .unwrap_or_default();
+        let size_ext = extension
+          .get("size")
+          .and_then(|e| e.first())
+          .cloned()
+          .unwrap_or_default();
+
         let mut rows = Vec::new();
         rows.extend([
           Cow::Owned(format!("{}", idx)),
           Cow::Borrowed(item.title()?),
+          Cow::Owned(size_ext.value()?.to_string()),
+          Cow::Owned(seeds_ext.value()?.to_string()),
         ]);
 
         Some(Row::new(rows))
       });
 
-      let title_row = ["idx", "title"];
+      let title_row = ["idx", "title", "size", "seeders"];
       let mut rows = vec![Row::new(title_row.map(Span::raw))];
       rows.extend(items);
 
@@ -54,6 +70,8 @@ impl Component for ItemsComponent {
         [
           Constraint::Max(num_str_len(items_len) as u16 + 1), // +1 cuz otherwise it is ugly
           Constraint::Fill(1),
+          Constraint::Max(10),
+          Constraint::Max(10),
         ],
       )
       .block(

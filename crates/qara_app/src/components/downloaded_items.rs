@@ -112,6 +112,17 @@ impl Component for DownloadedItemsComponent {
             tx.send(Action::Play(url.into()))?;
           };
         }
+        event::KeyCode::Char('d') | event::KeyCode::Backspace => {
+          if let Some(item_idx) = self.table.selected()
+            && let Some(handle) =
+              cx.torrent_handles.get(item_idx.saturating_sub(1))
+          {
+            tx.send(Action::DeleteHandle(
+              handle.info_hash(),
+              item_idx.saturating_sub(1),
+            ))?;
+          };
+        }
         event::KeyCode::Esc => {
           self.visible = false;
           tx.send(Action::Enter(*prev_mode))?;

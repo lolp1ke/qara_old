@@ -58,7 +58,6 @@ impl Default for AppCtxt {
     let size = crossterm::terminal::size().unwrap();
 
     Self {
-      // video: Player::default(),
       vo: Vo::Mpv,
       width: size.0,
       height: size.1,
@@ -261,6 +260,16 @@ impl App {
       Action::AppendHandle(handle) => {
         cx.torrent_handles.push(handle);
       }
+      Action::DeleteHandle(hash_id, item_idx) => {
+        if let Some(session) = self.session.clone() {
+          cx.torrent_handles.remove(item_idx);
+          self.executor.spawn(async move {
+            session.delete(hash_id.into(), true).await?;
+
+            anyhow::Ok(())
+          });
+        };
+      }
 
       Action::Popup(title, description, buttons) => {
         cx.mode = Mode::Popup(Box::new(cx.mode.clone()));
@@ -329,7 +338,7 @@ impl App {
           event::KeyCode::Char('i') => {
             self.tx.send(Action::Enter(Mode::Search))?;
           }
-          event::KeyCode::Char('s') => {
+          event::KeyCode::Char('j') => {
             if cx.channel.is_some() {
               self.tx.send(Action::Enter(Mode::Results))?;
             };
@@ -389,8 +398,10 @@ impl App {
           state: _,
         } = key
         {
-          if let Some(player_stop) = self.player_stop.take() {
-            player_stop.send(()).unwrap();
+          if let Some(player_stop) = self.player_stop.take()
+            && let Err(err) = player_stop.send(())
+          {
+            eprintln!("{:#?}", err);
           };
           self.tx.send(Action::Enter(Mode::Normal))?;
         };
@@ -409,13 +420,15 @@ impl App {
       event::Event::Key(key) => {
         self.handle_key_event(key, cx)?;
       }
-      event::Event::Mouse(..) => {}
+      event::Event::Resize(width, height) => {
+        cx.width = width;
+        cx.height = height;
+      }
       _ => {}
     };
     Ok(())
   }
   pub async fn run(&mut self) -> anyhow::Result<()> {
-    // panic!("{:?}", crossterm::terminal::size());
     let mut cx = AppCtxt::default();
     self.init(&mut cx).await?;
 
@@ -461,7 +474,6 @@ impl App {
     self.term.draw(|frame| {
       let layout = layout.split(frame.area());
       components.search.draw(frame, layout[0], cx);
-      components.downloaded_items.draw(frame, layout[1], cx);
 
       let layout = Layout::horizontal([
         Constraint::Fill(3),
@@ -473,6 +485,7 @@ impl App {
       ])
       .split(layout[1]);
       components.items.draw(frame, layout[0], cx);
+      components.downloaded_items.draw(frame, layout[0], cx);
       if cx.selected_item.is_some() {
         components.selected_item.draw(frame, layout[1], cx);
       };
